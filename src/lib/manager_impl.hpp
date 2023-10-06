@@ -44,7 +44,7 @@ class ManagerImpl : public Manager {
     std::weak_ptr< MessagingApplication > application_;
     std::shared_ptr< group_factory > _g_factory;
     std::shared_ptr< msg_service > _mesg_service;
-    std::unique_ptr< ::sisl::GrpcServer > _grpc_server;
+    std::unique_ptr<::sisl::GrpcServer > _grpc_server;
 
     std::mutex mutable _manager_lock;
     std::map< group_id_t, std::shared_ptr< mesg_state_mgr > > _state_managers;
@@ -100,10 +100,18 @@ public:
     ~repl_service_ctx_grpc() override = default;
     std::shared_ptr< mesg_factory > m_mesg_factory;
 
-    AsyncResult< sisl::io_blob > data_service_request(std::string const& request_name,
-                                                      io_blob_list_t const& cli_buf) override;
+    NullAsyncResult data_service_request_unidirectional(destination_t const& dest, std::string const& request_name,
+                                                        io_blob_list_t const& cli_buf) override;
+    IoBlobAsyncResult data_service_request_bidirectional(destination_t const& dest, std::string const& request_name,
+                                                         io_blob_list_t const& cli_buf) override;
+
+    IoBlobAsyncResult data_service_request(std::string const& request_name, io_blob_list_t const& cli_buf) override;
     void send_data_service_response(io_blob_list_t const& outgoing_buf,
                                     boost::intrusive_ptr< sisl::GenericRpcData >& rpc_data) override;
+
+private:
+    std::optional< peer_id_t > get_peer_id_str(destination_t const& dest);
+    std::string id_to_str(int32_t const id);
 };
 
 } // namespace nuraft_mesg
