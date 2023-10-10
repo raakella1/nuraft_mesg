@@ -230,17 +230,6 @@ IoBlobAsyncResult mesg_factory::data_service_request_bidirectional(std::optional
     return folly::makeUnexpected(nuraft::cmd_result_code::BAD_REQUEST);
 }
 
-IoBlobAsyncResult mesg_factory::data_service_request(std::string const& request_name, io_blob_list_t const& cli_buf) {
-    std::shared_lock< client_factory_lock_type > rl(_client_lock);
-    auto calls = std::vector< IoBlobAsyncResult >();
-    for (auto& nuraft_client : _clients) {
-        auto g_client = std::dynamic_pointer_cast< nuraft_mesg::group_client >(nuraft_client.second);
-        calls.push_back(
-            g_client->data_service_request_bidirectional(get_generic_method_name(request_name, _group_id), cli_buf));
-    }
-    return folly::collectAnyWithoutException(calls).deferValue([](auto&& p) { return p.second; });
-}
-
 group_factory::group_factory(int const cli_thread_count, group_id_t const& name,
                              std::shared_ptr< sisl::GrpcTokenClient > const token_client, std::string const& ssl_cert) :
         grpc_factory(cli_thread_count, to_string(name)), m_token_client(token_client) {
