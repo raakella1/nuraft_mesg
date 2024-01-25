@@ -15,5 +15,8 @@ add_subdirectory (lib)
 if(DEFINED ENABLE_TESTING)
   if(${ENABLE_TESTING})
     add_subdirectory(tests)
+    add_subdirectory(asio)
   endif()
 endif()
+
+
