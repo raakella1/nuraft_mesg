@@ -38,10 +38,7 @@ public:
 
 private:
     void do_read_header() {
-        std::string str;
-        str.reserve(receive_body_.size());
-        std::memcpy(str.data(), receive_body_.bytes(), receive_body_.size());
-        std::cout << "Received message: " << str << " size: " << receive_body_.size() << std::endl;
+        // std::cout << std::string(receive_body_.bytes(), receive_body_.bytes() + receive_body_.size()) << std::endl;
         ASYNC_MSG_HELPER(receive, receive_header_, do_read_header, do_read_body);
     }
     void do_read_body() {
