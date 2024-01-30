@@ -1,75 +1,63 @@
 #pragma once
 
 #include <boost/asio.hpp>
-#include <sisl/fds/buffer.hpp>
+#include "message.hpp"
 
 using boost::asio::ip::tcp;
 using async_handler_t = std::function< void(boost::system::error_code, size_t) >;
-uint32_t const read_sz = 6;
+
+#define ASYNC_MSG_HELPER(direction, msg, partial_handler, finished_handler)                                            \
+    auto self(shared_from_this());                                                                                     \
+    socket_.async_##direction(boost::asio::buffer(msg.pos(), msg.remaining_size()), MSG_ZEROCOPY,                      \
+                              [this, self](boost::system::error_code ec, size_t length) {                              \
+                                  if (!ec) {                                                                           \
+                                      msg.move_offset(length);                                                         \
+                                      if (msg.finished()) {                                                            \
+                                          msg.reset();                                                                 \
+                                          finished_handler();                                                          \
+                                      } else {                                                                         \
+                                          partial_handler();                                                           \
+                                      }                                                                                \
+                                  } else {                                                                             \
+                                      std::cerr << "Read error: " << ec.message() << std::endl;                        \
+                                  }                                                                                    \
+                              });
 
 class session : public std::enable_shared_from_this< session > {
 public:
     session(tcp::socket socket) : socket_(std::move(socket)) {}
+    ~session() { socket_.close(); }
 
-    void start() {
-        receive_buffer_.buf_alloc(read_sz);
-        do_read();
-    }
+    void start() { do_read_header(); }
 
-    void write(sisl::io_blob const& buf) {
-        send_buffer_ = buf;
-        do_write();
+    void write(sisl::io_blob_safe&& buf) {
+        send_header_.serialize(buf.size());
+        send_body_.set_buffer(std::move(buf));
+        do_write_header();
     }
 
 private:
-    void do_read() {
-        auto self(shared_from_this());
-        std::cout << "Waiting for message" << std::endl;
-        std::cout << "zero_cpy: " << MSG_ZEROCOPY << std::endl;
-        socket_.async_receive(
-            boost::asio::buffer(receive_buffer_.bytes() + bytes_received_, receive_buffer_.size() - bytes_received_),
-            MSG_ZEROCOPY, [this, self](boost::system::error_code ec, size_t length) {
-                if (!ec) {
-                    std::cout << "lenght: " << length << std::endl;
-                    bytes_received_ += length;
-                    if (bytes_received_ == receive_buffer_.size()) {
-                        std::cout << "Received message: "
-                                  << std::string(receive_buffer_.bytes(),
-                                                 receive_buffer_.bytes() + receive_buffer_.size())
-                                  << std::endl;
-                        bytes_received_ = 0;
-                    } else {
-                        std::cout << "Received partial bytes: " << length << std::endl;
-                    }
-                    do_read();
-                } else {
-                    std::cerr << "Read error: " << ec.message() << std::endl;
-                }
-            });
+    void do_read_header() {
+        std::string str;
+        str.reserve(receive_body_.size());
+        std::memcpy(str.data(), receive_body_.bytes(), receive_body_.size());
+        std::cout << "Received message: " << str << " size: " << receive_body_.size() << std::endl;
+        ASYNC_MSG_HELPER(receive, receive_header_, do_read_header, do_read_body);
+    }
+    void do_read_body() {
+        receive_body_.set_buffer(sisl::io_blob_safe(receive_header_.deserialize(), 512));
+        ASYNC_MSG_HELPER(receive, receive_body_, do_read_body, do_read_header);
     }
 
-    void do_write() {
-        auto self(shared_from_this());
-        socket_.async_send(boost::asio::buffer(send_buffer_.bytes() + bytes_sent_, send_buffer_.size() - bytes_sent_),
-                           MSG_ZEROCOPY, [this, self](boost::system::error_code ec, size_t length) {
-                               if (!ec) {
-                                   bytes_sent_ += length;
-                                   if (bytes_sent_ == send_buffer_.size()) {
-                                       std::cout << "Sent message" << std::endl;
-                                       bytes_sent_ = 0;
-                                   } else {
-                                       std::cout << "Sent partial bytes: " << length << std::endl;
-                                       do_write();
-                                   }
-                               } else {
-                                   std::cerr << "Send error: " << ec.message() << std::endl;
-                               }
-                           });
-    }
+    void do_write_header() { ASYNC_MSG_HELPER(send, send_header_, do_write_header, do_write_body); }
+    void do_write_body() { ASYNC_MSG_HELPER(send, send_body_, do_write_body, pass_through); }
 
+    void pass_through() {}
+
+private:
     tcp::socket socket_;
-    sisl::io_blob receive_buffer_;
-    sisl::io_blob send_buffer_;
-    size_t bytes_received_{0};
-    size_t bytes_sent_{0};
+    HeaderMessage receive_header_;
+    Message receive_body_;
+    HeaderMessage send_header_;
+    Message send_body_;
 };

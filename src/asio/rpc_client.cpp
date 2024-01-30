@@ -13,9 +13,9 @@ public:
 
     void write(std::string const& message) {
         std::cout << "Sending message: " << message << std::endl;
-        sisl::io_blob buf(message.size());
+        sisl::io_blob_safe buf(message.size(), 512);
         std::memcpy(buf.bytes(), message.data(), message.size());
-        session_->write(buf);
+        session_->write(std::move(buf));
     }
 
 private:

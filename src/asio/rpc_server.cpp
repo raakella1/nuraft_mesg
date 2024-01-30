@@ -19,7 +19,6 @@ private:
             } else {
                 std::cerr << "Accept error: " << ec.message() << std::endl;
             }
-
             do_accept();
         });
     }
