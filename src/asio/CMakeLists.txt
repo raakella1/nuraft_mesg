@@ -8,6 +8,7 @@ target_sources(test_main PRIVATE
       test_main.cpp
       rpc_client.cpp
       session.cpp
+      workloads.cpp
 )
 target_link_libraries (test_main
    Boost::Boost

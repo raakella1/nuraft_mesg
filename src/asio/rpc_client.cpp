@@ -5,19 +5,19 @@
 #include "rpc_client.hpp"
 
 namespace sisl {
-asio_client::asio_client(boost::asio::io_context& io_context, tcp::resolver::results_type const& endpoints) :
-        socket_(io_context) {
+asio_client::asio_client(boost::asio::io_context& io_context, tcp::resolver::results_type const& endpoints,
+                         completion_cb const& cb) :
+        socket_(io_context), cb_(cb) {
     do_connect(endpoints);
 }
 
-void asio_client::write(std::string const& message) {
-    std::cout << "Sending message: " << message << std::endl;
-    sisl::io_blob_safe buf(message.size(), 512);
-    std::memcpy(buf.bytes(), message.data(), message.size());
-    session_->write(std::move(buf));
+void asio_client::do_connect(tcp::resolver::results_type const& endpoints) {
+    boost::asio::connect(socket_, endpoints);
+    session_ = std::make_shared< Session >(std::move(socket_), cb_, nullptr);
+    session_->start();
 }
 
-void asio_client::do_connect(tcp::resolver::results_type const& endpoints) {
+void asio_client::do_connect_async(tcp::resolver::results_type const& endpoints) {
     boost::asio::async_connect(socket_, endpoints, [this](boost::system::error_code ec, tcp::endpoint) {
         if (!ec) {
             std::cout << "Connected" << std::endl;
