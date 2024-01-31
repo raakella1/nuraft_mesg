@@ -2,6 +2,7 @@
 
 #include <sisl/fds/buffer.hpp>
 
+namespace sisl {
 class Message {
 public:
     Message() = default;
@@ -33,3 +34,5 @@ public:
     void serialize(uint32_t sz) { *reinterpret_cast< uint32_t* >(Message::bytes()) = sz; }
     uint32_t deserialize() { return *reinterpret_cast< uint32_t* >(Message::bytes()); }
 };
+
+} // namespace sisl

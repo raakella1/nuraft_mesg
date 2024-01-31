@@ -2,62 +2,31 @@
 #include <thread>
 #include <string>
 
-#include "session.hpp"
+#include "rpc_client.hpp"
 
-class asio_client {
-public:
-    asio_client(boost::asio::io_context& io_context, tcp::resolver::results_type const& endpoints) :
-            socket_(io_context) {
-        do_connect(endpoints);
-    }
-
-    void write(std::string const& message) {
-        std::cout << "Sending message: " << message << std::endl;
-        sisl::io_blob_safe buf(message.size(), 512);
-        std::memcpy(buf.bytes(), message.data(), message.size());
-        session_->write(std::move(buf));
-    }
-
-private:
-    void do_connect(tcp::resolver::results_type const& endpoints) {
-        boost::asio::async_connect(socket_, endpoints, [this](boost::system::error_code ec, tcp::endpoint) {
-            if (!ec) {
-                std::cout << "Connected" << std::endl;
-                session_ = std::make_shared< session >(std::move(socket_));
-                session_->start();
-            } else {
-                std::cerr << "Connect error: " << ec.message() << std::endl;
-            }
-        });
-    }
-
-private:
-    tcp::socket socket_;
-    std::shared_ptr< session > session_;
-};
-
-int main() {
-    boost::asio::io_context io_context;
-    tcp::resolver resolver(io_context);
-    auto endpoints = resolver.resolve("127.0.0.1", "1991");
-    asio_client client(io_context, endpoints);
-
-    std::vector< std::thread > threads_;
-    uint16_t num_threads_ = 2;
-    for (uint16_t i = 0; i < num_threads_; ++i) {
-        threads_.emplace_back([&io_context] { io_context.run(); });
-    }
-
-    std::string message;
-    std::cout << "Enter message: ";
-    while (std::getline(std::cin, message)) {
-        if (message == "exit") { break; }
-        client.write(message);
-    }
-    std::cout << "Exiting..." << std::endl;
-    io_context.stop();
-    for (auto& t : threads_) {
-        t.join();
-    }
-    return 0;
+namespace sisl {
+asio_client::asio_client(boost::asio::io_context& io_context, tcp::resolver::results_type const& endpoints) :
+        socket_(io_context) {
+    do_connect(endpoints);
 }
+
+void asio_client::write(std::string const& message) {
+    std::cout << "Sending message: " << message << std::endl;
+    sisl::io_blob_safe buf(message.size(), 512);
+    std::memcpy(buf.bytes(), message.data(), message.size());
+    session_->write(std::move(buf));
+}
+
+void asio_client::do_connect(tcp::resolver::results_type const& endpoints) {
+    boost::asio::async_connect(socket_, endpoints, [this](boost::system::error_code ec, tcp::endpoint) {
+        if (!ec) {
+            std::cout << "Connected" << std::endl;
+            session_ = std::make_shared< Session >(std::move(socket_));
+            session_->start();
+        } else {
+            std::cerr << "Connect error: " << ec.message() << std::endl;
+        }
+    });
+}
+
+} // namespace sisl
