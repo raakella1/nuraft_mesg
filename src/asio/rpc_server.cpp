@@ -1,3 +1,4 @@
+#include <sisl/logging/logging.h>
 #include "rpc_server.hpp"
 
 namespace sisl {
@@ -22,11 +23,11 @@ void asio_server::stop() { io_context_.stop(); }
 void asio_server::do_accept() {
     acceptor_.async_accept(boost::asio::make_strand(io_context_),
                            [this](boost::system::error_code ec, tcp::socket socket) {
-                               std::cout << "Accepted connection" << std::endl;
+                               LOGINFO("accepting connection")
                                if (!ec) {
                                    std::make_shared< Session >(std::move(socket))->start();
                                } else {
-                                   std::cerr << "Accept error: " << ec.message() << std::endl;
+                                   LOGERROR("accept error: {}", ec.message());
                                }
                                do_accept();
                            });

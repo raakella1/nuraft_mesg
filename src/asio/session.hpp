@@ -19,15 +19,11 @@ public:
     void write(sisl::io_blob_safe&& buf);
 
 private:
-    void do_read_header(boost::system::error_code);
-    void do_read_body(boost::system::error_code);
-    void do_read_completion(boost::system::error_code ec);
+    void do_read_header();
+    void do_read_body();
 
-    void do_write_header(boost::system::error_code);
-    void do_write_body(boost::system::error_code);
-    void do_write_completion(boost::system::error_code ec);
-
-    void pass_through() {}
+    void do_write_header();
+    void do_write_body();
 
 private:
     tcp::socket socket_;

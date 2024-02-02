@@ -47,7 +47,7 @@ int main(int argc, char** argv) {
         });
     }
 
-    LOGINFO("Exiting");
+    LOGINFO("Waiting for workloads to complete");
     for (auto& t : workload_threads) {
         t.join();
     }

@@ -7,6 +7,8 @@ Workload::Workload(boost::asio::io_context& io_context, tcp::resolver::results_t
                    WorkloadParams const& params, std::string const& name) :
         client_(io_context, endpoints,
                 [this](auto ec) {
+                    static std::atomic_int count = 0;
+                    LOGINFO("io write completion, count: {}", count++)
                     RELEASE_ASSERT(!ec, "io error: {}", ec.message());
                     io_write_latch_.count_down();
                 }),
@@ -16,8 +18,8 @@ Workload::Workload(boost::asio::io_context& io_context, tcp::resolver::results_t
 
 void Workload::run() {
     // random data of size io_size_
-    auto data = std::vector< std::byte >(io_size_);
-    // fill the data_vec with random data
+    auto data = std::vector< std::byte >(params_.io_size);
+    // fill the data with random data
     static std::independent_bits_engine< std::default_random_engine, CHAR_BIT, unsigned char > rbe;
     for (auto& b : data) {
         b = std::byte{rbe()};

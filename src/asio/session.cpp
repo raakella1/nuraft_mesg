@@ -1,23 +1,6 @@
 #include <sisl/logging/logging.h>
 #include "session.hpp"
 
-#define ASYNC_MSG_HELPER(direction, msg, partial_handler, finished_handler)                                            \
-    auto self(shared_from_this());                                                                                     \
-    socket_.async_##direction(boost::asio::buffer(msg.pos(), msg.remaining_size()), MSG_ZEROCOPY,                      \
-                              [this, self](boost::system::error_code ec, size_t length) {                              \
-                                  if (!ec) {                                                                           \
-                                      msg.move_offset(length);                                                         \
-                                      if (msg.finished()) {                                                            \
-                                          msg.reset();                                                                 \
-                                          finished_handler(ec);                                                        \
-                                      } else {                                                                         \
-                                          partial_handler(ec);                                                         \
-                                      }                                                                                \
-                                  } else {                                                                             \
-                                      socket_.close();                                                                 \
-                                  }                                                                                    \
-                              });
-
 namespace sisl {
 
 Session::Session(tcp::socket socket) : socket_(std::move(socket)) {}
@@ -28,34 +11,98 @@ Session::Session(tcp::socket socket, completion_cb const& write_cb, completion_c
 }
 Session::~Session() { socket_.close(); }
 
-void Session::start() { do_read_header(boost::system::error_code()); }
+void Session::start() { do_read_header(); }
 
 void Session::write(sisl::io_blob_safe&& buf) {
     send_header_.serialize(buf.size());
     send_body_.set_buffer(std::move(buf));
-    do_write_header(boost::system::error_code());
+    do_write_header();
 }
 
-void Session::do_read_header(boost::system::error_code) {
-    ASYNC_MSG_HELPER(receive, receive_header_, do_read_header, do_read_body);
+void Session::do_read_header() {
+    auto self(shared_from_this());
+    socket_.async_receive(boost::asio::buffer(receive_header_.pos(), receive_header_.remaining_size()), MSG_ZEROCOPY,
+                          [this, self](boost::system::error_code ec, size_t length) {
+                              if (!ec) {
+                                  receive_header_.move_offset(length);
+                                  LOGINFO("receive_header_ move_offset: {}", length)
+                                  if (receive_header_.finished()) {
+                                      receive_header_.reset_offset();
+                                      LOGINFO("receive_body_ deserialize: {}", receive_header_.deserialize())
+                                      do_read_body();
+                                  } else {
+                                      do_read_header();
+                                  }
+                              } else {
+                                  LOGTRACE("do_read_header error: {}", ec.message());
+                                  socket_.close();
+                              }
+                          });
 }
-void Session::do_read_body(boost::system::error_code) {
+
+void Session::do_read_body() {
     receive_body_.set_buffer(sisl::io_blob_safe(receive_header_.deserialize(), 512));
-    ASYNC_MSG_HELPER(receive, receive_body_, do_read_body, do_read_completion);
-}
-void Session::do_read_completion(boost::system::error_code ec) {
-    if (read_cb_) { read_cb_(ec); }
-    do_read_header(boost::system::error_code());
+    auto self(shared_from_this());
+    socket_.async_receive(boost::asio::buffer(receive_body_.pos(), receive_body_.remaining_size()), MSG_ZEROCOPY,
+                          [this, self](boost::system::error_code ec, size_t length) {
+                              if (!ec) {
+                                  receive_body_.move_offset(length);
+                                  LOGINFO("receive_body_ move_offset: {}", length)
+                                  if (receive_body_.finished()) {
+                                      LOGINFO("receive_body_ finished")
+                                      receive_body_.reset_offset();
+                                      if (read_cb_) { read_cb_(ec); }
+                                      do_read_header();
+                                  } else {
+                                      do_read_body();
+                                  }
+                              } else {
+                                  socket_.close();
+                              }
+                          });
 }
 
-void Session::do_write_header(boost::system::error_code) {
-    ASYNC_MSG_HELPER(send, send_header_, do_write_header, do_write_body);
+void Session::do_write_header() {
+    auto self(shared_from_this());
+    LOGINFO("send header deserialize: {}", send_header_.deserialize())
+    socket_.async_send(boost::asio::buffer(send_header_.pos(), send_header_.remaining_size()), MSG_ZEROCOPY,
+                       [this, self](boost::system::error_code ec, size_t length) {
+                           if (!ec) {
+                               send_header_.move_offset(length);
+                               LOGINFO("send_header_ move_offset: {}", length)
+                               if (send_header_.finished()) {
+                                   send_header_.reset_offset();
+                                   do_write_body();
+                               } else {
+                                   do_write_header();
+                               }
+                           } else {
+                               LOGERROR("do_write_header error: {}", ec.message());
+                               if (write_cb_) { write_cb_(ec); }
+                               socket_.close();
+                           }
+                       });
 }
-void Session::do_write_body(boost::system::error_code) {
-    ASYNC_MSG_HELPER(send, send_body_, do_write_body, do_write_completion);
-}
-void Session::do_write_completion(boost::system::error_code ec) {
-    if (write_cb_) { write_cb_(ec); }
+
+void Session::do_write_body() {
+    auto self(shared_from_this());
+    socket_.async_send(boost::asio::buffer(send_body_.pos(), send_body_.remaining_size()), MSG_ZEROCOPY,
+                       [this, self](boost::system::error_code ec, size_t length) {
+                           if (!ec) {
+                               send_body_.move_offset(length);
+                               LOGINFO("send_body_ move_offset: {}", length)
+                               if (send_body_.finished()) {
+                                   send_body_.reset_offset();
+                                   if (write_cb_) { write_cb_(ec); }
+                               } else {
+                                   do_write_body();
+                               }
+                           } else {
+                               LOGERROR("do_write_body error: {}", ec.message());
+                               if (write_cb_) { write_cb_(ec); }
+                               socket_.close();
+                           }
+                       });
 }
 
 } // namespace sisl

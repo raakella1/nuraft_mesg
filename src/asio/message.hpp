@@ -19,7 +19,7 @@ public:
     uint32_t remaining_size() const { return buffer_.size() - offset_; }
     uint32_t size() const { return buffer_.size(); }
     bool finished() const { return offset_ == buffer_.size(); }
-    void reset() { offset_ = 0; }
+    void reset_offset() { offset_ = 0; }
 
 private:
     size_t offset_{0};

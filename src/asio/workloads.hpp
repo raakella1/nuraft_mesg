@@ -39,7 +39,6 @@ private:
     asio_client client_;
     WorkloadParams params_;
     WorkloadMetrics metrics_;
-    uint64_t io_size_;
     std::latch io_write_latch_;
 };
 
