@@ -7,7 +7,7 @@ namespace sisl {
 class asio_client {
 public:
     asio_client(boost::asio::io_context& io_context, tcp::resolver::results_type const& endpoints,
-                completion_cb const& cb);
+                write_completion_cb const& cb);
 
     template < typename T >
     void write(T const& message) {
@@ -23,6 +23,6 @@ private:
 private:
     tcp::socket socket_;
     std::shared_ptr< Session > session_;
-    completion_cb cb_;
+    write_completion_cb cb_;
 };
 } // namespace sisl

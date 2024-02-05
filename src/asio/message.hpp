@@ -20,6 +20,8 @@ public:
     uint32_t size() const { return buffer_.size(); }
     bool finished() const { return offset_ == buffer_.size(); }
     void reset_offset() { offset_ = 0; }
+    // buffer_ is invalidated after this call
+    sisl::io_blob_safe move_buffer() { return std::move(buffer_); }
 
 private:
     size_t offset_{0};

@@ -5,13 +5,13 @@
 
 namespace sisl {
 using boost::asio::ip::tcp;
-using async_handler_t = std::function< void(boost::system::error_code, size_t) >;
-using completion_cb = std::function< void(boost::system::error_code) >;
+using write_completion_cb = std::function< void(boost::system::error_code const) >;
+using read_completion_cb = std::function< void(boost::system::error_code const, sisl::io_blob_safe&&) >;
 
 class Session : public std::enable_shared_from_this< Session > {
 public:
     Session(tcp::socket socket);
-    Session(tcp::socket socket, completion_cb const& write_cb, completion_cb const& read_cb);
+    Session(tcp::socket socket, write_completion_cb const& write_cb, read_completion_cb const& read_cb);
     ~Session();
 
     void start();
@@ -31,8 +31,8 @@ private:
     Message receive_body_;
     HeaderMessage send_header_;
     Message send_body_;
-    completion_cb write_cb_;
-    completion_cb read_cb_;
+    write_completion_cb write_cb_;
+    read_completion_cb read_cb_;
 };
 
 } // namespace sisl

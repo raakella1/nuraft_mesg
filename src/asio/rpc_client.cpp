@@ -6,7 +6,7 @@
 
 namespace sisl {
 asio_client::asio_client(boost::asio::io_context& io_context, tcp::resolver::results_type const& endpoints,
-                         completion_cb const& cb) :
+                         write_completion_cb const& cb) :
         socket_(io_context), cb_(cb) {
     do_connect(endpoints);
 }

@@ -3,8 +3,8 @@
 
 namespace sisl {
 
-asio_server::asio_server(tcp::endpoint const& endpoint, uint16_t num_threads) :
-        acceptor_(io_context_, endpoint), num_threads_(num_threads) {
+asio_server::asio_server(tcp::endpoint const& endpoint, uint16_t num_threads, read_completion_cb const& cb) :
+        acceptor_(io_context_, endpoint), num_threads_(num_threads), cb_(cb) {
     do_accept();
 }
 
@@ -23,9 +23,9 @@ void asio_server::stop() { io_context_.stop(); }
 void asio_server::do_accept() {
     acceptor_.async_accept(boost::asio::make_strand(io_context_),
                            [this](boost::system::error_code ec, tcp::socket socket) {
-                               LOGINFO("accepting connection")
+                               LOGTRACE("accepting connection")
                                if (!ec) {
-                                   std::make_shared< Session >(std::move(socket))->start();
+                                   std::make_shared< Session >(std::move(socket), nullptr, cb_)->start();
                                } else {
                                    LOGERROR("accept error: {}", ec.message());
                                }

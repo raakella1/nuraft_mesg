@@ -4,7 +4,7 @@
 namespace sisl {
 
 Session::Session(tcp::socket socket) : socket_(std::move(socket)) {}
-Session::Session(tcp::socket socket, completion_cb const& write_cb, completion_cb const& read_cb) :
+Session::Session(tcp::socket socket, write_completion_cb const& write_cb, read_completion_cb const& read_cb) :
         Session(std::move(socket)) {
     write_cb_ = write_cb;
     read_cb_ = read_cb;
@@ -25,10 +25,8 @@ void Session::do_read_header() {
                           [this, self](boost::system::error_code ec, size_t length) {
                               if (!ec) {
                                   receive_header_.move_offset(length);
-                                  LOGINFO("receive_header_ move_offset: {}", length)
                                   if (receive_header_.finished()) {
                                       receive_header_.reset_offset();
-                                      LOGINFO("receive_body_ deserialize: {}", receive_header_.deserialize())
                                       do_read_body();
                                   } else {
                                       do_read_header();
@@ -47,11 +45,9 @@ void Session::do_read_body() {
                           [this, self](boost::system::error_code ec, size_t length) {
                               if (!ec) {
                                   receive_body_.move_offset(length);
-                                  LOGINFO("receive_body_ move_offset: {}", length)
                                   if (receive_body_.finished()) {
-                                      LOGINFO("receive_body_ finished")
                                       receive_body_.reset_offset();
-                                      if (read_cb_) { read_cb_(ec); }
+                                      if (read_cb_) { read_cb_(ec, receive_body_.move_buffer()); }
                                       do_read_header();
                                   } else {
                                       do_read_body();
@@ -64,12 +60,10 @@ void Session::do_read_body() {
 
 void Session::do_write_header() {
     auto self(shared_from_this());
-    LOGINFO("send header deserialize: {}", send_header_.deserialize())
     socket_.async_send(boost::asio::buffer(send_header_.pos(), send_header_.remaining_size()), MSG_ZEROCOPY,
                        [this, self](boost::system::error_code ec, size_t length) {
                            if (!ec) {
                                send_header_.move_offset(length);
-                               LOGINFO("send_header_ move_offset: {}", length)
                                if (send_header_.finished()) {
                                    send_header_.reset_offset();
                                    do_write_body();
@@ -77,7 +71,7 @@ void Session::do_write_header() {
                                    do_write_header();
                                }
                            } else {
-                               LOGERROR("do_write_header error: {}", ec.message());
+                               LOGTRACE("do_write_header error: {}", ec.message());
                                if (write_cb_) { write_cb_(ec); }
                                socket_.close();
                            }
@@ -90,7 +84,6 @@ void Session::do_write_body() {
                        [this, self](boost::system::error_code ec, size_t length) {
                            if (!ec) {
                                send_body_.move_offset(length);
-                               LOGINFO("send_body_ move_offset: {}", length)
                                if (send_body_.finished()) {
                                    send_body_.reset_offset();
                                    if (write_cb_) { write_cb_(ec); }
@@ -98,7 +91,7 @@ void Session::do_write_body() {
                                    do_write_body();
                                }
                            } else {
-                               LOGERROR("do_write_body error: {}", ec.message());
+                               LOGTRACE("do_write_body error: {}", ec.message());
                                if (write_cb_) { write_cb_(ec); }
                                socket_.close();
                            }

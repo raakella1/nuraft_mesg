@@ -10,7 +10,10 @@ SISL_OPTION_GROUP(asio_test,
                    "io size in bytes"),
                   (io_count, "", "io_count", "io_count", cxxopts::value< uint32_t >()->default_value("10000"), ""),
                   (num_clients, "", "num_clients", "num_clients", cxxopts::value< uint32_t >()->default_value("1"), ""),
-                  (io_threads, "", "io_threads", "io_threads", cxxopts::value< uint32_t >()->default_value("2"), ""))
+                  (io_threads, "", "io_threads", "io_threads", cxxopts::value< uint32_t >()->default_value("2"), ""),
+                  (verify, "", "verify", "verify", cxxopts::value< bool >()->default_value("false"), ""),
+                  (test_data_dir, "", "test_data_dir", "test_data_dir",
+                   cxxopts::value< std::string >()->default_value("test_data"), "test data directory"))
 
 #define TEST_OPTIONS logging, asio_test
 SISL_OPTIONS_ENABLE(TEST_OPTIONS)
@@ -29,6 +32,7 @@ int main(int argc, char** argv) {
     auto endpoints =
         resolver.resolve(SISL_OPTIONS["svr_ip_addr"].as< std::string >(), SISL_OPTIONS["svr_port"].as< std::string >());
 
+    auto work = boost::asio::make_work_guard(io_context);
     std::vector< std::thread > io_threads;
     for (uint16_t i = 0; i < SISL_OPTIONS["io_threads"].as< uint32_t >(); ++i) {
         io_threads.emplace_back([&io_context] { io_context.run(); });
@@ -39,10 +43,11 @@ int main(int argc, char** argv) {
 
     for (uint32_t i = 0; i < SISL_OPTIONS["num_clients"].as< uint32_t >(); ++i) {
         workload_threads.emplace_back([&io_context, endpoints, i] {
-            auto w = sisl::Workload(io_context, endpoints,
-                                    sisl::WorkloadParams{SISL_OPTIONS["io_size"].as< uint32_t >(),
-                                                         SISL_OPTIONS["io_count"].as< uint32_t >()},
-                                    fmt::format("workload_{}", i));
+            auto w = sisl::Workload(
+                io_context, endpoints,
+                sisl::WorkloadParams{fmt::format("workload_{}", i), SISL_OPTIONS["io_size"].as< uint32_t >(),
+                                     SISL_OPTIONS["io_count"].as< uint32_t >(), SISL_OPTIONS["verify"].as< bool >(),
+                                     SISL_OPTIONS["test_data_dir"].as< std::string >()});
             w.run();
         });
     }
@@ -55,5 +60,6 @@ int main(int argc, char** argv) {
     for (auto& t : io_threads) {
         t.join();
     }
+    LOGINFO("Workloads completed");
     return 0;
 }
