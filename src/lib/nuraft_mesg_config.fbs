@@ -15,6 +15,7 @@ table MesgFactoryConfig {
 
 table NuraftMesgConfig {
     mesg_factory_config: MesgFactoryConfig;
+    raft_scheduler_thread_cnt: uint16 = 2;
 }
 
 root_type NuraftMesgConfig;
